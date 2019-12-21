@@ -1,7 +1,6 @@
 import sys
 
 from PyQt5 import QtWidgets
-from ui.mainWindow import MainWindow
 from ui.settingWindow import SettingWindow
 from objects.music import Music
 

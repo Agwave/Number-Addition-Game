@@ -1,18 +1,18 @@
-import copy
-import sys
 from PyQt5 import QtWidgets, QtGui, QtCore
 from PyQt5.QtCore import Qt
-from objects.generate_matrix import Matrix
 
 class MainWindow(QtWidgets.QWidget):
 
-    def __init__(self, m):
+    def __init__(self, m, game_time, game_num):
         super().__init__()
         self.matrix = m.matrix
-        self.load = m.load
+        self.game_time = game_time
+        self.game_num = game_num
+        self.close_flag = True
         self.initUI()
 
     main_close_signal = QtCore.pyqtSignal()
+    main_regen_signal = QtCore.pyqtSignal(int)
 
     def initUI(self):
         self._set_overall_situation()
@@ -31,6 +31,7 @@ class MainWindow(QtWidgets.QWidget):
         self._create_arrow()
         self.center()
         self.use_palette()
+        self._create_time_label()
 
     def _create_arrow(self):
         lable1 = QtWidgets.QLabel(self)
@@ -54,6 +55,13 @@ class MainWindow(QtWidgets.QWidget):
         window_pale.setBrush(self.backgroundRole(),
                              QtGui.QBrush(QtGui.QPixmap("./picture_files/blue_micro.jpeg")))
         self.setPalette(window_pale)
+
+    def _create_time_label(self):
+        self.time_label = MyLabel(self)
+        self.time_label.move(50, self.length+70)
+        self.time_label.set_sec(self.game_time)
+        self.time_label.my_start_time(1000)
+        self.time_label.timeout_signal.connect(self._game_fail)
 
     def _create_num_buttoms(self):
         self.num_buttoms = []
@@ -88,7 +96,10 @@ class MainWindow(QtWidgets.QWidget):
                     flag = False
                     break
             if flag:
-                QtWidgets.QMessageBox.information(self, "正确", "恭喜你成功通过游戏")
+                self.close()
+                time_comsuming = int(self.time_label.text())
+                QtWidgets.QMessageBox.information(
+                    self, "正确", "恭喜你成功通过游戏,耗时{}秒".format(self.game_time-time_comsuming))
             else:
                 QtWidgets.QMessageBox.information(self, "错误", "你的选择有误，请重新确认")
             print("commit_list", commit_list)
@@ -121,7 +132,7 @@ class MainWindow(QtWidgets.QWidget):
         if cur_index % n != n-1:
             if not self.num_buttoms[cur_index+1].styleSheet() == "background-color: yellow":
                 index.append(cur_index+1)
-        if cur_index <= n*(n-1):
+        if cur_index < n*(n-1):
             if not self.num_buttoms[cur_index+n].styleSheet() == "background-color: yellow":
                 index.append(cur_index+n)
         if cur_index % n != 0:
@@ -129,20 +140,44 @@ class MainWindow(QtWidgets.QWidget):
                 index.append(cur_index-1)
         return index
 
+    def _game_fail(self):
+        self.game_num -= 1
+        if self.game_num == 0:
+            QtWidgets.QMessageBox.information(self, "游戏结果", "游戏时间超时。3次机会已使用完毕，游戏失败。")
+        else:
+            QtWidgets.QMessageBox.information(
+                self, "提示", "游戏时间超时，你还有{}次机会，点击确认开始下一次机会".format(self.game_num))
+            self.close_flag = False
+        self.close()
+
     def closeEvent(self, QCloseEvent):
-        reply = QtWidgets.QMessageBox.question(self,
-                                               '退出',
-                                               "是否要返回初始界面？",
-                                               QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
-                                               QtWidgets.QMessageBox.No)
-        if reply == QtWidgets.QMessageBox.Yes:
+        if self.close_flag or self.game_num == 0:
+            if self.game_num != 0:
+                self.time_label.killTimer(self.time_label.time_id)
             self.main_close_signal.emit()
         else:
-            QCloseEvent.ignore()
+            self.main_regen_signal.emit(self.game_num)
+        self.close()
 
+class MyLabel(QtWidgets.QLabel):
 
-if __name__ == '__main__':
-    m = Matrix(4)
-    app = QtWidgets.QApplication(sys.argv)
-    ex = MainWindow(m)
-    sys.exit(app.exec_())
+    def __init__(self, *args, **kwargs):  # 这里是要传递参数的，这个表达是通用适配所有的类型
+        super(MyLabel, self).__init__(*args, **kwargs)  # 先执行父类的方法
+        self.setStyleSheet("font-size:72px")
+
+    timeout_signal = QtCore.pyqtSignal()
+
+    def set_sec(self, sec):
+        self.setText(str(sec))
+
+    def my_start_time(self, ms=1000):
+        self.time_id = self.startTimer(ms)
+
+    def timerEvent(self, QTimeEvent):
+        cur_sec = int(self.text())
+        cur_sec -= 1
+        self.setText(str(cur_sec))
+        if cur_sec == 0:
+            self.killTimer(self.time_id)
+            self.timeout_signal.emit()
+
