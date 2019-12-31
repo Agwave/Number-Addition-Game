@@ -12,7 +12,5 @@
 # 五、代码使用方法
 1. 调好环境，比如安装好pygame和pyqt5
 2. 运行main.py
-# 六、代码地址
-**https://github.com/Agwave/Number-Addition-Game**
 
 
